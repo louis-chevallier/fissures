@@ -1,15 +1,20 @@
 from utillc import *
 import cv2, os, sys
 import numpy as np
-import tkinter as tk  
+import tkinter as tk
+from tkinter import ttk
 from PIL import Image,ImageTk  
+import pickle
 
 folder = "/home/louis/Desktop/tmp/fissures"
 imaf = "IMG_20251107_113638.jpg"
 imbf = "IMG_20250328_170711.jpg"
 
-imbf = imaf
-
+"""
+imaf = "IMG_20250328_170711.jpg"
+imbf = "IMG_20250328_170711-rot.jpg"
+"""
+#imbf = imaf
 imf = [ imaf, imbf]
 
 ims_hide = [ cv2.imread(os.path.join(folder, i)) for i in imf]
@@ -26,16 +31,18 @@ rsz = lambda x, sz : x.resize(sz, Image.Resampling.LANCZOS)
 pims = [ topil(e) for e in ims_hide]
 pims = [ rsz(e, new_size(e)) for e in pims]
 
-EKOX(pims[0].size)
+
+EKOX([ e.size for e in pims])
+
+#EKOX(pims[0].size)
 nw, nh = pims[0].size
 
 
-EKOX(pims[0])
+#EKOX(pims[0])
 
 
 root = tk.Tk()  
 root.title("fissures")
-
 root.geometry("1000x1000")
 
 
@@ -44,7 +51,7 @@ root.geometry("1000x1000")
 
 # Convert images to grayscale
 img1, img2 = [ cv2.cvtColor(np.array(im), cv2.COLOR_BGR2GRAY) for im in pims]
-EKOX(img1.shape)
+#EKOX(img1.shape)
 
 mean_img1 = np.mean(img1)
 mean_img2 = np.mean(img2)
@@ -62,14 +69,11 @@ img2 = img2 * ratio
 img2 = np.clip(img2, 0, 255)
 img2 = img2.astype(np.uint8)
 
-EKOX(img1.shape)
+#EKOX(img1.shape)
 
 image1 = img1 #cv2.cvtColor(img1, cv2.COLOR_BGR2GRAY)
 image2 = img2 #cv2.cvtColor(img2, cv2.COLOR_BGR2GRAY)
 height, width = image2.shape
-
-
-
 
 cv = tk.Canvas()
 cv.pack(side='top', fill='both', expand='yes')  
@@ -77,36 +81,99 @@ cv.pack(side='top', fill='both', expand='yes')
 
 def save() :
 	a_points = np.asarray([ center_circle(c) for c,_,_ in circles[::2]])
-	with open('points.npy', 'wb') as f:
-		np.save(f, a_points)
-
-def load() :
-	with open('points.npy', 'rb') as f:
-		a = np.load(f)
-	EKOX(a)
-	[ do_new(cx, cy) for (cx, cy) in a]
-
-
-def match() :
-	a_points = np.asarray([ center_circle(c) for c,_,_ in circles[::2]])
 	b_points = np.asarray([ center_circle(c) for c,_,_ in circles[1::2]])
-	b_points = b_points - [ nw , 0]
-	EKOX(a_points)
-	EKOX(b_points)
-	M, mask = cv2.findHomography(a_points, b_points, cv2.RANSAC, 5.0)
-	EKOX(M.shape)
-	EKOX(M)
-	#draw_params = dict(singlePointColor=None, flags=2)
-	#img3 = cv2.drawMatches(image1, a_points, image2, b_points)
-	#EKOI(img3)
-	aligned_image2 = cv2.warpPerspective(image2, M, (image1.shape[1], image1.shape[0]))
-	EKOI(aligned_image2)
+
+	with open('filename.pickle', 'wb') as handle:
+		d = { "a" : a_points, "b" : b_points}		
+		pickle.dump(d, handle, protocol=pickle.HIGHEST_PROTOCOL)
+
+	#EKO()
+	
+def load() :
+	#EKO()
+	with open('filename.pickle', 'rb') as handle:
+		d = pickle.load(handle)
+		#EKOX(d)
+		a, b = d["a"], d["b"]
+		#EKOX(a)
+		[ do_new(cx, cy, cbx, cby) for (cx, cy), (cbx, cby) in zip(a, b)]
+		#EKO()
+
+
 	
 
 
 photo1, photo2 = [ ImageTk.PhotoImage(e) for e in pims]
 cv.create_image(0, 0, image=photo1, anchor='nw') 
 cv.create_image(photo1.width(), 0, image=photo2, anchor='nw')
+
+
+
+class SecondWindow(tk.Toplevel):
+	def __init__(self, *args, title="Other Window", **kwargs):
+		super().__init__(*args, **kwargs)
+		self.title(title)
+		self.geometry("1000x1000")
+		
+		tk.Label(self, font=(None, 20), text= \
+			"This is a toplevel window.\n"
+			"Create this after the main window.") \
+			.pack(padx=20, pady=20)
+
+		self.cvx = tk.Canvas(self)
+		self.cvx.pack(side='top', fill='both', expand='yes')
+		self.ims = []
+		self.i = 0
+		self.cim = self.cvx.create_image(0, 0, image=photo1, anchor='nw')
+		self.A = photo1
+		self.B = None
+		
+	def zap(self) :
+		self.i = (self.i + 1) % 2
+		ll = [self.A, self.A if self.B is None else self.B]
+		iil = ll[self.i]
+		self.cvx.itemconfigure(self.cim, image = iil)
+		
+	def add(self, im) :
+		self.B = im
+
+
+	
+
+root2 = SecondWindow()
+
+
+def countdown(count):
+	root2.after(500//2, countdown, count-1)
+	root2.zap()
+
+root2.after(1000, countdown, 122)
+
+	
+def match() :
+	if len(circles) >=4 :
+		a_points = np.asarray([ center_circle(c) for c,_,_ in circles[::2]])
+		b_points = np.asarray([ center_circle(c) for c,_,_ in circles[1::2]])
+		b_points = b_points - [ nw , 0]
+		#EKOX(a_points)
+		#EKOX(b_points)
+
+
+		# on transforme l'image B pour la plaquer sur la A 
+
+		M, mask = cv2.findHomography(b_points, a_points) #, cv2.RANSAC, 5.0)
+		#EKOX(M.shape)
+		#EKOX(M)
+		#draw_params = dict(singlePointColor=None, flags=2)
+		#img3 = cv2.drawMatches(image1, a_points, image2, b_points)
+		#EKOI(img3)
+		aligned_image2 = cv2.warpPerspective(image2, M, (image1.shape[1], image1.shape[0]))
+		EKOI(aligned_image2)
+		EKOX(aligned_image2.shape)
+		EKOX(image2.shape)
+		EKOX(image1.shape)
+		ai = ImageTk.PhotoImage(topil(aligned_image2))	
+		root2.add(ai)
 
 
 marks = []
@@ -140,7 +207,7 @@ N=1
 numbers = list(range(1222))
 
 cc = np.random.randint(0, nw, size=(N, 2))
-EKOX(cc)
+#EKOX(cc)
 	
 circles = [ e for i, c in enumerate(cc) for e in add_two_marks(c) ]
 
@@ -155,11 +222,14 @@ floats = lambda l : np.asarray(list(map(float, l)))
 
 threshold = 4
 
-def do_new(cx, cy) :
+def do_new(cx, cy, cbx=-1, cby=-1) :
 	global selected		
 	newn = numbers.pop(0)
 	new_marka = add_mark((cx, cy), "A" + str(newn))
-	new_markb = add_mark((cx+10, cy), "B" + str(newn))
+
+	bb = (cbx, cby) if cbx >= 0 else (cx+10, cy)
+	
+	new_markb = add_mark(bb, "B" + str(newn))
 	circles.append(new_marka)
 	circles.append(new_markb)
 	selected = len(circles)-2
@@ -181,6 +251,7 @@ def click(c):
 			#EKOX(selected)
 		else :
 			do_new(cx, cy)
+	match()
 	
 def drag(c):
 	cx, cy = c.x, c.y
@@ -197,7 +268,7 @@ def drag(c):
 		x1, y1, x2, y2 = ccc
 		cv.coords(sel_dot, x1, y1, x2, y2)
 		#EKOX(center_circle(sel_circle))
-
+		match()
 
 def close(ca, cb) :
 	return np.linalg.norm(floats(ca) - floats(cb)) < threshold 
@@ -207,6 +278,30 @@ def delete(idx) :
 	oo = circles[idx]
 	[ cv.delete(e) for e in oo]
 
+def arrow(dx, dy) :
+	EKON(dx, dy)
+	if selected is not None :
+		mm = selected
+		sel_circle, sel_text, sel_dot = circles[mm]
+		#EKOX(sel_circle)
+		cc = center_circle(sel_circle)
+		cx, cy = cc
+
+		cx += dx
+		cy += dy
+		
+		ccc = coords4((cx, cy))
+		#EKOX(ccc)
+		ccc = coords4((cx, cy))
+		#EKOX(ccc)
+		x1, y1, x2, y2 = ccc
+		cv.coords(sel_circle, x1, y1, x2, y2)
+		cv.coords(sel_text, x1, y1)
+		ccc = coords4((cx, cy), 2)
+		x1, y1, x2, y2 = ccc
+		cv.coords(sel_dot, x1, y1, x2, y2)
+	
+		match()
 	
 def release(c):
 	global selected
@@ -227,7 +322,7 @@ def release(c):
 
 
 def delete_all() :
-	EKO()
+	#EKO()
 	global circles
 	[ delete(i) for i in range(len(circles))]
 	circles = []
@@ -235,6 +330,7 @@ def delete_all() :
 	
 def key_handler(event) :
 	EKOX(event.keysym)
+	EKOX(event.keycode)
 	try :
 		{
 			'D' : delete_all,
@@ -243,7 +339,19 @@ def key_handler(event) :
 			's' : save,
 			'm' : match
 		}[event.keysym]()
-		EKO()
+		#EKO()
+	except Exception as ex:
+		#EKOX(ex)
+		pass
+	EKOX(event.keycode)
+	try :
+		{
+			111 : lambda : arrow(0, -1),
+			116 : lambda : arrow(0, 1),
+			114 : lambda : arrow(1, 0),
+			113 : lambda : arrow(-1, 0)
+		}[event.keycode]()
+		#EKO()
 	except Exception as ex:
 		EKOX(ex)
 		pass
@@ -254,7 +362,7 @@ cv.bind('<ButtonRelease-1>', release)
 cv.bind("<B1-Motion>", drag) 
 root.bind('<KeyPress>', key_handler)
 root.bind('<Shift-d>', key_handler)
-EKO()
+#EKO()
 
 
 root.mainloop()
