@@ -7,6 +7,9 @@ from PIL import Image,ImageTk
 folder = "/home/louis/Desktop/tmp/fissures"
 imaf = "IMG_20251107_113638.jpg"
 imbf = "IMG_20250328_170711.jpg"
+
+imbf = imaf
+
 imf = [ imaf, imbf]
 
 ims_hide = [ cv2.imread(os.path.join(folder, i)) for i in imf]
@@ -87,6 +90,7 @@ def load() :
 def match() :
 	a_points = np.asarray([ center_circle(c) for c,_,_ in circles[::2]])
 	b_points = np.asarray([ center_circle(c) for c,_,_ in circles[1::2]])
+	b_points = b_points - [ nw , 0]
 	EKOX(a_points)
 	EKOX(b_points)
 	M, mask = cv2.findHomography(a_points, b_points, cv2.RANSAC, 5.0)
@@ -233,12 +237,13 @@ def key_handler(event) :
 	EKOX(event.keysym)
 	try :
 		{
-			'D' : lambda : delete_all,
+			'D' : delete_all,
 			'q' : lambda : sys.exit(0),
-			'l' : lambda : load,
-			's' : lambda : save,
+			'l' : load,
+			's' : save,
 			'm' : match
 		}[event.keysym]()
+		EKO()
 	except Exception as ex:
 		EKOX(ex)
 		pass
