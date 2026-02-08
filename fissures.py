@@ -11,6 +11,8 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 from torchvision.transforms import v2
 import torchvision
+from torch.autograd import Variable
+import kornia
 
 plt.rcParams["savefig.bbox"] = 'tight'
 
@@ -35,7 +37,22 @@ imbf = "IMG_20250328_170711-rot.jpg"
 #imbf = imaf
 imf = [ imaf, imbf]
 
-ims_hide = [ cv2.imread(os.path.join(folder, i)) for i in imf]
+ia, ib = ims_hide = [ cv2.imread(os.path.join(folder, i)) for i in imf]
+
+ha, wa, d = ia.shape
+hb, wb, _ = ib.shape
+#EKOX(ia)
+if ha > hb :
+		ib = np.vstack((np.zeros((ha - hb, wb, d)), ib))
+else :
+		ia = np.vstack((np.zeros((hb - ha, wa, d)), ia))		
+
+if wa > wb :
+		ib = np.hstack((np.zeros((hb, wa - wb, d)), ib))
+else :
+		ia = np.hstack((np.zeros((ha, wb - wa, d)), ia))		
+ims_hide = ia, ib		
+
 topil = lambda x :Image.fromarray(np.uint8(x)).convert('RGB')
 
 def new_size(img, base_width=500) :
@@ -62,6 +79,9 @@ nw, nh = pims[0].size
 root = tk.Tk()  
 root.title("fissures")
 root.geometry("1000x1000")
+
+cimg1, cimg2 = pims
+
 
 
 
@@ -168,29 +188,194 @@ def countdown(count):
 root2.after(1000, countdown, 122)
 
 	
-def match2() :
-		if len(circles) >=4 :
+def match22() :
+		EKOX(len(circles))
+		if len(circles) == 4 :
 				try :
 						EKO()
-						a_points = torch.tensor(np.asarray([ center_circle(c) for c,_,_ in circles[::2]]))
-						b_points = torch.tensor(np.asarray([ center_circle(c) for c,_,_ in circles[1::2]]))
-						EKOX(b_points.shape)
-						b_points = b_points - torch.tensor([ nw , 0])
-						timage1 = torch.tensor(image2)
 
-						p = torchvision.transforms.functional.perspective(timage1,
-																		  startpoints = a_points,
-																		  endpoints = b_points,
-																		  interpolation = torchvision.transforms.InterpolationMode.BILINEAR)
-						EKOX(p.shape)
+						# on recupere les points en les mettant au format Y,X
+						a_points = torch.tensor(np.asarray([ center_circle(c)[::-1] for c,_,_ in circles[::2]]))
+						b_points = torch.tensor(np.asarray([ center_circle(c)[::-1] for c,_,_ in circles[1::2]]))
+						b_points = b_points - torch.tensor([ 0 , nw])
+		
+						Y = lambda P : P[1]
+						X = lambda P : P[0]
+						AR = lambda a : np.array(a)
+						P  = lambda x,y : AR((x, y))
+						TENS = lambda a : torch.tensor(a)
+						PRMTI  = lambda t : torch.permute(t, (1, 2, 0))
+						PRMIT  = lambda t : torch.permute(t, (2, 0, 1))
+						def rect(tlbr) :
+								tl, br = tlbr
+								EKON(br)
+								EKON(tl)
+								h = Y(br) - Y(tl)
+								w = X(br) - X(tl)
+								EKON(h, w)
+								tr = AR(P(Y(tl), X(tl) + w))
+								bl = AR(P(Y(br), X(br) - w))
+								return AR((tl, tr, br, bl))
+					
+						top_left_B, bottom_right_B = b_points
+						top_left_A, bottom_right_A = a_points
+						EKO()
+						ra = torch.tensor(rect(a_points))
+						EKO()
+						rb = torch.tensor(rect(b_points)).int()
+						(x1b, y1b), _, (x2b, y2b), _ = rb
+						EKOX(rb)
+						EKON(x1b, y1b, x2b, y2b)
+						EKOI(AR(cimg1))
+						timage1 = PRMIT(TENS(AR(cimg1))).float()
+						timage2 = PRMIT(TENS(AR(cimg2))).float()
+						
+						EKOX(timage2.shape)
+						EKOX(timage2.dtype)
+						roi_B = timage2[:, y1b:y2b, x1b:x2b]
+						EKO()
+						EKOI(AR(PRMTI(roi_B)))
+						EKOX(AR(PRMTI(roi_B)).shape)
 
-
+						_, h, w = roi_B.shape
+						tl, tr, br, bl = AR(((0, 0), (0, w), (h, w), (h, 0)))
+						endpoints = TENS(AR((tl, tr, br, bl)))
+						EKON(h, w)
+						EKOX(timage1.shape)
+						EKOX(timage1.dtype)
+						x = Variable(ra)
+						x = torch.tensor(rect(a_points), requires_grad=True)
+						opt = torch.optim.SGD([x], lr=.01)
+						EKOX(x)
+						def objective() :
+								EKO()
+								p = torchvision.transforms.functional.perspective(timage1,
+																				  startpoints = x,
+																				  endpoints = endpoints,
+																				  interpolation = torchvision.transforms.InterpolationMode.BILINEAR)
+								EKOX(p.shape)
+								EKOX(timage1.shape)
+								EKOX(timage2.shape)								
+								tres = AR(PRMTI(p))
+								EKOI(tres)
+								
+								
+								loss = ((p - timage2)**2).mean()
+								EKOX(loss)
+								return loss
+						for i in range(10):
+								EKOX(i)
+								opt.zero_grad()
+								obj = objective()
+								EKOX(obj)
+								obj.backward()
+								EKO()
+								opt.step()
+								if i%1000==0:  print("Objective: %.1f" % -obj.item())						
 
 						
 						EKO()
 				except Exception as e:
 						EKOX(e)
 
+def match2() :
+		EKOX(len(circles))
+		if len(circles) == 4 :
+				try :
+						EKO()
+
+						# on recupere les points en les mettant au format Y,X
+						a_points = torch.tensor(np.asarray([ center_circle(c)[::-1] for c,_,_ in circles[::2]]))
+						b_points = torch.tensor(np.asarray([ center_circle(c)[::-1] for c,_,_ in circles[1::2]]))
+						b_points = b_points - torch.tensor([ 0 , nw])
+		
+						Y = lambda P : P[1]
+						X = lambda P : P[0]
+						AR = lambda a : np.array(a)
+						P  = lambda x,y : AR((x, y))
+						TENS = lambda a : torch.tensor(a)
+						PRMTI  = lambda t : torch.permute(t, (1, 2, 0))
+						PRMIT  = lambda t : torch.permute(t, (2, 0, 1))
+						def rect(tlbr) :
+								tl, br = tlbr
+								EKON(br)
+								EKON(tl)
+								h = Y(br) - Y(tl)
+								w = X(br) - X(tl)
+								EKON(h, w)
+								tr = AR(P(Y(tl), X(tl) + w))
+								bl = AR(P(Y(br), X(br) - w))
+								return AR((tl, tr, br, bl))
+					
+						top_left_B, bottom_right_B = b_points
+						top_left_A, bottom_right_A = a_points
+						EKO()
+						ra = torch.tensor(rect(a_points))
+						EKO()
+						rb = torch.tensor(rect(b_points)).int()
+						(x1b, y1b), _, (x2b, y2b), _ = rb
+						EKOX(rb)
+						EKON(x1b, y1b, x2b, y2b)
+						EKOI(AR(cimg1))
+						timage1 = PRMIT(TENS(AR(cimg1))).float()
+						timage2 = PRMIT(TENS(AR(cimg2))).float()
+						
+						EKOX(timage2.shape)
+						EKOX(timage2.dtype)
+						roi_B = timage2[:, y1b:y2b, x1b:x2b]
+						EKO()
+						EKOI(AR(PRMTI(roi_B)))
+						EKOX(AR(PRMTI(roi_B)).shape)
+						
+						_, h2, w2 = timage2.shape
+						_, h1, w1 = timage1.shape
+						tl, tr, br, bl = AR(((0, 0), (0, w1), (h1, w1), (h1, 0)))
+						endpoints = TENS(AR((tl, tr, br, bl)))
+						EKON(h1, w1)
+						EKOX(timage1.shape)
+						EKOX(timage1.dtype)
+						x = Variable(ra)
+						x = torch.tensor(rect(a_points), requires_grad=True)
+
+						x1 = torch.tensor([[[0., 0.], [1., 0.], [1., 1.], [0., 1.]]])
+						x2 = torch.tensor([[[1., 0.], [0., 0.], [0., 1.], [1., 1.]]])
+						x2_trans_x1 = kornia.geometry.transform.get_perspective_transform(x1, x2)
+						
+						opt = torch.optim.SGD([x2_trans_x1], lr=.01)
+						EKOX(x)
+						def objective() :
+								EKO()
+								p = kornia.geometry.transform.warp_perspective(timage1[None, ...],
+													 x2_trans_x1,
+													 (h2, w2),
+													 align_corners=True)
+								p = p[0]
+								EKOX(p.shape)
+								EKOX(timage1.shape)
+								EKOX(timage2.shape)								
+								tres = AR(PRMTI(p))
+								EKOI(tres)
+								
+								
+								loss = ((p - timage2)**2).mean()
+								EKOX(loss)
+								return loss
+						for i in range(10):
+								EKOX(i)
+								opt.zero_grad()
+								obj = objective()
+								EKOX(obj)
+								obj.backward()
+								EKO()
+								opt.step()
+								if i%1000==0:  print("Objective: %.1f" % -obj.item())						
+
+						
+						EKO()
+				except Exception as e:
+						EKOX(e)
+
+				
 				
 		
 def match() :
@@ -294,7 +479,7 @@ def click(c):
 			#EKOX(selected)
 		else :
 			do_new(cx, cy)
-	match()
+	#match()
 	
 def drag(c):
 	cx, cy = c.x, c.y
@@ -311,7 +496,7 @@ def drag(c):
 		x1, y1, x2, y2 = ccc
 		cv.coords(sel_dot, x1, y1, x2, y2)
 		#EKOX(center_circle(sel_circle))
-		match()
+		#match()
 
 def close(ca, cb) :
 	return np.linalg.norm(floats(ca) - floats(cb)) < threshold 
@@ -373,7 +558,7 @@ def delete_all() :
 	
 def key_handler(event) :
 	EKOX(event.keysym)
-	EKOX(event.keycode)
+	#EKOX(event.keycode)
 	try :
 		{
 				'D' : delete_all,
@@ -387,7 +572,7 @@ def key_handler(event) :
 	except Exception as ex:
 		#EKOX(ex)
 		pass
-	EKOX(event.keycode)
+	#EKOX(event.keycode)
 	try :
 		{
 			111 : lambda : arrow(0, -1),
@@ -397,7 +582,7 @@ def key_handler(event) :
 		}[event.keycode]()
 		#EKO()
 	except Exception as ex:
-		EKOX(ex)
+		#EKOX(ex)
 		pass
 
 			
@@ -409,6 +594,13 @@ root.bind('<Shift-d>', key_handler)
 root.bind('<Shift-s>', key_handler)
 root.bind('<Shift-l>', key_handler)
 #EKO()
+
+
+if False :
+		delete_all()
+		load()
+		match2()
+
 
 
 root.mainloop()
@@ -496,3 +688,4 @@ aligned_image2 = cv2.warpPerspective(image2, M, (image1.shape[1], image1.shape[0
 
 EKOI(aligned_image)
 EKOI(aligned_image2)
+
