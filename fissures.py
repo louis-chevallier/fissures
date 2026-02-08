@@ -5,6 +5,24 @@ import tkinter as tk
 from tkinter import ttk
 from PIL import Image,ImageTk  
 import pickle
+import torch
+from PIL import Image
+from pathlib import Path
+import matplotlib.pyplot as plt
+from torchvision.transforms import v2
+import torchvision
+
+plt.rcParams["savefig.bbox"] = 'tight'
+
+# if you change the seed, make sure that the randomly-applied transforms
+# properly show that the image can be both transformed and *not* transformed!
+torch.manual_seed(0)
+
+# If you're trying to run that on Colab, you can download the assets and the
+# helpers from https://github.com/pytorch/vision/tree/main/gallery/
+#from helpers import plot
+
+
 
 folder = "/home/louis/Desktop/tmp/fissures"
 imaf = "IMG_20251107_113638.jpg"
@@ -150,6 +168,31 @@ def countdown(count):
 root2.after(1000, countdown, 122)
 
 	
+def match2() :
+		if len(circles) >=4 :
+				try :
+						EKO()
+						a_points = torch.tensor(np.asarray([ center_circle(c) for c,_,_ in circles[::2]]))
+						b_points = torch.tensor(np.asarray([ center_circle(c) for c,_,_ in circles[1::2]]))
+						EKOX(b_points.shape)
+						b_points = b_points - torch.tensor([ nw , 0])
+						timage1 = torch.tensor(image2)
+
+						p = torchvision.transforms.functional.perspective(timage1,
+																		  startpoints = a_points,
+																		  endpoints = b_points,
+																		  interpolation = torchvision.transforms.InterpolationMode.BILINEAR)
+						EKOX(p.shape)
+
+
+
+						
+						EKO()
+				except Exception as e:
+						EKOX(e)
+
+				
+		
 def match() :
 	if len(circles) >=4 :
 		a_points = np.asarray([ center_circle(c) for c,_,_ in circles[::2]])
@@ -333,11 +376,12 @@ def key_handler(event) :
 	EKOX(event.keycode)
 	try :
 		{
-			'D' : delete_all,
-			'q' : lambda : sys.exit(0),
-			'l' : load,
-			's' : save,
-			'm' : match
+				'D' : delete_all,
+				'q' : lambda : sys.exit(0),
+				'l' : load,
+				's' : save,
+				'm' : match,
+				'1' : match2
 		}[event.keysym]()
 		#EKO()
 	except Exception as ex:
@@ -362,6 +406,8 @@ cv.bind('<ButtonRelease-1>', release)
 cv.bind("<B1-Motion>", drag) 
 root.bind('<KeyPress>', key_handler)
 root.bind('<Shift-d>', key_handler)
+root.bind('<Shift-s>', key_handler)
+root.bind('<Shift-l>', key_handler)
 #EKO()
 
 
