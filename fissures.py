@@ -243,8 +243,8 @@ def match22() :
 						EKON(h, w)
 						EKOX(timage1.shape)
 						EKOX(timage1.dtype)
-						x = Variable(ra)
-						x = torch.tensor(rect(a_points), requires_grad=True)
+						x = Variable(ra, requires_grad=True)
+						#x = torch.tensor(rect(a_points), requires_grad=True)
 						opt = torch.optim.SGD([x], lr=.01)
 						EKOX(x)
 						def objective() :
@@ -253,6 +253,8 @@ def match22() :
 																				  startpoints = x,
 																				  endpoints = endpoints,
 																				  interpolation = torchvision.transforms.InterpolationMode.BILINEAR)
+
+								
 								EKOX(p.shape)
 								EKOX(timage1.shape)
 								EKOX(timage2.shape)								
@@ -319,44 +321,60 @@ def match2() :
 						EKOI(AR(cimg1))
 						timage1 = PRMIT(TENS(AR(cimg1))).float()
 						timage2 = PRMIT(TENS(AR(cimg2))).float()
-						
+						EKOI(PRMTI(timage1))
 						EKOX(timage2.shape)
 						EKOX(timage2.dtype)
+						
 						roi_B = timage2[:, y1b:y2b, x1b:x2b]
 						EKO()
-						EKOI(AR(PRMTI(roi_B)))
+						#EKOI(AR(PRMTI(roi_B)))
 						EKOX(AR(PRMTI(roi_B)).shape)
 						
 						_, h2, w2 = timage2.shape
 						_, h1, w1 = timage1.shape
 						tl, tr, br, bl = AR(((0, 0), (0, w1), (h1, w1), (h1, 0)))
 						endpoints = TENS(AR((tl, tr, br, bl)))
+
+						
+
+						
 						EKON(h1, w1)
 						EKOX(timage1.shape)
 						EKOX(timage1.dtype)
-						x = Variable(ra)
-						x = torch.tensor(rect(a_points), requires_grad=True)
+						x1 = Variable(ra, requires_grad=True)
+						#x = torch.tensor(rect(a_points), requires_grad=True)
 
-						x1 = torch.tensor([[[0., 0.], [1., 0.], [1., 1.], [0., 1.]]])
-						x2 = torch.tensor([[[1., 0.], [0., 0.], [0., 1.], [1., 1.]]])
+						x1 = torch.tensor([[[0., 0.], [1., 0.], [1., 1.], [0., 1.]]],
+										  requires_grad=True)
+						x2 = torch.tensor([[[1., 0.], [0., 0.], [0., 1.], [1., 1.]]],
+										  requires_grad=True)
+						EKOX(x1)
+						x2 = x1 + 12
+						
 						x2_trans_x1 = kornia.geometry.transform.get_perspective_transform(x1, x2)
+
+						tens = x2_trans_x1.detach().numpy()
+						EKOX(tens)
+						x2_trans_x1 = Variable(torch.tensor(tens),
+											   requires_grad=True)
+						EKOX(x2_trans_x1.shape)
 						
 						opt = torch.optim.SGD([x2_trans_x1], lr=.01)
-						EKOX(x)
+
 						def objective() :
 								EKO()
-								p = kornia.geometry.transform.warp_perspective(timage1[None, ...],
-													 x2_trans_x1,
-													 (h2, w2),
-													 align_corners=True)
-								p = p[0]
+								p = kornia.geometry.transform.warp_perspective(timage1[None, ...].float(),
+																			   x2_trans_x1,
+																			   (h2, w2),
+																			   align_corners=True)[0]
+								#EKOX((timage1 * x2_trans_x1.mean()).shape)
+								EKOX(p.mean())
 								EKOX(p.shape)
 								EKOX(timage1.shape)
-								EKOX(timage2.shape)								
-								tres = AR(PRMTI(p))
+								EKOX(timage2.shape)
+								tres = AR(PRMTI(p*255).detach().cpu().int())
+								EKOX(tres.shape)
 								EKOI(tres)
-								
-								
 								loss = ((p - timage2)**2).mean()
 								EKOX(loss)
 								return loss
